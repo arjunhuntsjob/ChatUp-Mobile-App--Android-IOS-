@@ -191,9 +191,6 @@ const HomeScreen = () => {
         <Text style={styles.headerTitle}>My Chats</Text>
         <View style={styles.headerRight}>
           {/* Notification Button */}
-          {/* <TouchableOpacity style={styles.iconButton}>
-            <Icon name="bell" size={22} color="#EBE8DB" />
-          </TouchableOpacity> */}
           <TouchableOpacity
             style={[
               styles.iconButton,
@@ -508,6 +505,25 @@ const styles = StyleSheet.create({
   createGroupText: {
     color: '#EBE8DB',
     fontWeight: '500',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    right: -2,
+    top: -2,
+    backgroundColor: 'red',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+    zIndex: 1,
+  },
+
+  badgeText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 

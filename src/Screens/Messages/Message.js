@@ -305,6 +305,11 @@ const Messages = ({route}) => {
     </View>
   );
 
+  const handleGoBack = () => {
+    navigation.goBack();
+    setSelectedChat(null);
+  };
+
   if (!chatInfo) {
     return (
       <View style={styles.fullContainer}>
@@ -336,7 +341,7 @@ const Messages = ({route}) => {
           {/* Chat Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => navigation.goBack()}
+              onPress={() => handleGoBack()}
               style={styles.backIconButton}>
               <Icon name="arrow-left" size={24} color="#EBE8DB" />
             </TouchableOpacity>

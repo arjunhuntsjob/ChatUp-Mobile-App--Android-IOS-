@@ -6,8 +6,10 @@ import React, {
   useCallback,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import io from 'socket.io-client';
 
 const ChatContext = createContext();
+const ENDPOINT = 'https://chat-application-1795.onrender.com';
 
 const ChatProvider = ({children}) => {
   const [user, setUser] = useState(null);
@@ -15,6 +17,7 @@ const ChatProvider = ({children}) => {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState([]);
+  const [socket, setSocket] = useState(null);
 
   // Fetch Chats Method
   const fetchChats = useCallback(async () => {
@@ -55,12 +58,15 @@ const ChatProvider = ({children}) => {
   // Add Notification
   const addNotification = useCallback(
     newMessage => {
+      console.log('addNotification called with:', newMessage);
+
       // Check if the notification for this chat already exists
       const existingNotification = notification.find(
         notif => notif.chat._id === newMessage.chat._id,
       );
 
       if (!existingNotification) {
+        console.log('Adding new notification');
         // Add new notification with full message object
         setNotification(prevNotifications => [
           {
@@ -71,6 +77,8 @@ const ChatProvider = ({children}) => {
           },
           ...prevNotifications,
         ]);
+      } else {
+        console.log('Notification already exists for this chat');
       }
     },
     [notification],
@@ -82,6 +90,42 @@ const ChatProvider = ({children}) => {
       prevNotifications.filter(notif => notif.chat._id !== chatId),
     );
   }, []);
+
+  // Socket Setup
+  useEffect(() => {
+    if (user) {
+      console.log('Setting up global socket connection');
+      const newSocket = io(ENDPOINT);
+      setSocket(newSocket);
+
+      newSocket.emit('setup', user);
+
+      newSocket.on('connected', () => {
+        console.log('Global socket connected');
+      });
+
+      // Global message received handler for notifications
+      newSocket.on('message received', newMessage => {
+        console.log('Global message received:', newMessage);
+
+        // Only create notification if:
+        // 1. Message is not from current user
+        // 2. User is not currently in that chat
+        if (
+          newMessage.sender._id !== user._id &&
+          (!selectedChat || selectedChat._id !== newMessage.chat._id)
+        ) {
+          console.log('Creating notification for message');
+          addNotification(newMessage);
+        }
+      });
+
+      return () => {
+        console.log('Disconnecting global socket');
+        newSocket.disconnect();
+      };
+    }
+  }, [user, selectedChat, addNotification]);
 
   // Initial load
   useEffect(() => {
@@ -121,6 +165,7 @@ const ChatProvider = ({children}) => {
         setNotification,
         addNotification,
         removeNotification,
+        socket, // Provide socket for chat-specific operations
       }}>
       {children}
     </ChatContext.Provider>
