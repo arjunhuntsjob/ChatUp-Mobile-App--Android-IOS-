@@ -20,6 +20,7 @@ import Icon from 'react-native-vector-icons/Feather';
 import {useNavigation} from '@react-navigation/native';
 import io from 'socket.io-client';
 import EmojiSelector, {Categories} from 'react-native-emoji-selector';
+import GroupChatDetailsModal from './GroupChatsDetailsModal';
 
 const ENDPOINT = 'https://chat-application-1795.onrender.com';
 const {height: screenHeight} = Dimensions.get('window');
@@ -33,6 +34,7 @@ const Messages = ({route}) => {
   const [typingUser, setTypingUser] = useState(null);
   const [socket, setSocket] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGroupDetails, setShowGroupDetails] = useState(false);
 
   const navigation = useNavigation();
   const flatListRef = useRef(null);
@@ -345,7 +347,6 @@ const Messages = ({route}) => {
               style={styles.backIconButton}>
               <Icon name="arrow-left" size={24} color="#EBE8DB" />
             </TouchableOpacity>
-
             {!chatInfo.isGroupChat ? (
               <Image
                 source={{uri: getSenderPic(user, chatInfo.users)}}
@@ -358,7 +359,6 @@ const Messages = ({route}) => {
                 </Text>
               </View>
             )}
-
             <View style={styles.headerInfo}>
               <Text style={styles.headerName} numberOfLines={1}>
                 {!chatInfo.isGroupChat
@@ -371,10 +371,17 @@ const Messages = ({route}) => {
                 </Text>
               )}
             </View>
-
-            <TouchableOpacity style={styles.headerButton}>
-              <Icon name="more-vertical" size={22} color="#EBE8DB" />
-            </TouchableOpacity>
+            {chatInfo?.isGroupChat && (
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => {
+                  if (chatInfo.isGroupChat) {
+                    setShowGroupDetails(true);
+                  }
+                }}>
+                <Icon name="more-vertical" size={22} color="#EBE8DB" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Messages List */}
@@ -476,6 +483,25 @@ const Messages = ({route}) => {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+        {/* Group Chat Details Modal */}
+        {chatInfo?.isGroupChat && (
+          <GroupChatDetailsModal
+            visible={showGroupDetails}
+            chat={chatInfo}
+            user={user}
+            onClose={() => setShowGroupDetails(false)}
+            onUpdateChat={updatedChat => {
+              if (updatedChat) {
+                setSelectedChat(updatedChat);
+                // Optionally refresh messages or update chat info
+              } else {
+                // User left the group, navigate back
+                navigation.goBack();
+                setSelectedChat(null);
+              }
+            }}
+          />
+        )}
       </SafeAreaView>
     </View>
   );
@@ -510,6 +536,7 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    paddingTop: Platform.OS === 'ios' ? 0 : 60,
   },
   backIconButton: {
     width: 40,
@@ -712,6 +739,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: 16,
+    // paddingBottom: 0,
+    paddingBottom: Platform.OS === 'ios' ? 0 : 20,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#D76C82',

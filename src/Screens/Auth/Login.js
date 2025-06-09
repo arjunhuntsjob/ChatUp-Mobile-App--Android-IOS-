@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   SafeAreaView,
+  Linking,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -72,6 +73,11 @@ const Login = () => {
       setError('Failed to authenticate. Try again later.');
       setIsLoading(false);
     }
+  };
+
+  const handleClick = () => {
+    const url = 'https://arjunkanths-portfolio.netlify.app/'; // Replace with your desired link
+    Linking.openURL(url).catch(err => console.error("Couldn't load page", err));
   };
 
   return (
@@ -203,7 +209,7 @@ const Login = () => {
           <View style={styles.footerContainer}>
             <View style={styles.footerTextContainer}>
               <Text style={styles.footerText}>Made with ❤️ by</Text>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={handleClick}>
                 <View style={styles.footerLinkContainer}>
                   <Text style={styles.footerLink}>Arjun</Text>
                   <Svg
