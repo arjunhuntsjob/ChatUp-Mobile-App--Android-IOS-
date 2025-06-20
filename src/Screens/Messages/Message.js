@@ -14,7 +14,10 @@ import {
   StatusBar,
   Dimensions,
   ActivityIndicator,
+  Animated,
+  ToastAndroid,
 } from 'react-native';
+import {useClipboard} from '@react-native-clipboard/clipboard';
 import {ChatState} from '../../Context/ChatProvider';
 import Icon from 'react-native-vector-icons/Feather';
 import {useNavigation} from '@react-navigation/native';
@@ -35,7 +38,13 @@ const Messages = ({route}) => {
   const [socket, setSocket] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGroupDetails, setShowGroupDetails] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({x: 0, y: 0});
 
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
   const navigation = useNavigation();
   const flatListRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -242,22 +251,28 @@ const Messages = ({route}) => {
       (index === messages.length - 1 ||
         messages[index + 1]?.sender._id !== item.sender._id);
 
+    const isSelected = selectedMessage?._id === item._id;
+
     return (
-      <View
+      <Animated.View
         style={[
           styles.messageContainer,
           isMyMessage ? styles.myMessage : styles.theirMessage,
+          isSelected && styles.selectedMessage,
         ]}>
         {!isMyMessage && showAvatar && (
           <Image source={{uri: item.sender.pic}} style={styles.messageAvatar} />
         )}
         {!isMyMessage && !showAvatar && <View style={styles.avatarSpacer} />}
 
-        <View
+        <TouchableOpacity
           style={[
             styles.messageBubble,
             isMyMessage ? styles.myMessageBubble : styles.theirMessageBubble,
-          ]}>
+          ]}
+          activeOpacity={0.9}
+          onLongPress={event => showActionMenu(item, event)}
+          delayLongPress={500}>
           {!isMyMessage && chatInfo.isGroupChat && (
             <Text style={styles.senderName}>{item.sender.name}</Text>
           )}
@@ -275,8 +290,8 @@ const Messages = ({route}) => {
             ]}>
             {formatMessageTime(item.createdAt)}
           </Text>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -331,6 +346,180 @@ const Messages = ({route}) => {
     );
   }
 
+  const showActionMenu = (item, event) => {
+    const {pageX, pageY} = event.nativeEvent;
+
+    setSelectedMessage(item);
+    setMenuPosition({x: pageX, y: pageY});
+    setMenuVisible(true);
+
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0.5,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 150,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const hideActionMenu = () => {
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.8,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setMenuVisible(false);
+      setSelectedMessage(null);
+    });
+  };
+
+  const handleCopyMessage = async () => {
+    if (selectedMessage) {
+      try {
+        await useClipboard.setString(selectedMessage.content);
+        if (Platform.OS === 'android') {
+          ToastAndroid.show('Message copied', ToastAndroid.SHORT);
+        }
+      } catch (error) {
+        console.error('Failed to copy message:', error);
+      }
+    }
+    hideActionMenu();
+  };
+
+  const handleDeleteMessage = () => {
+    hideActionMenu();
+    setTimeout(() => {
+      Alert.alert(
+        'Delete Message',
+        'Are you sure you want to delete this message?',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const response = await fetch(
+                  `https://chat-application-1795.onrender.com/api/message/delete/${selectedMessage._id}`,
+                  {
+                    method: 'DELETE',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${user.token}`,
+                    },
+                  },
+                );
+
+                if (!response.ok) {
+                  throw new Error('Failed to delete message');
+                }
+                setMessages(prevMessages =>
+                  prevMessages.filter(msg => msg._id !== selectedMessage._id),
+                );
+                setSelectedMessage(null);
+
+                if (Platform.OS === 'android') {
+                  ToastAndroid.show('Message deleted', ToastAndroid.SHORT);
+                }
+              } catch (error) {
+                console.error('Error deleting message:', error);
+                Alert.alert('Error', 'Something went wrong while deleting.');
+              }
+            },
+          },
+        ],
+      );
+    }, 100);
+  };
+
+  const getMenuPosition = () => {
+    const menuWidth = 160;
+    const menuHeight = 100;
+    const padding = 20;
+
+    let x = menuPosition.x;
+    let y = menuPosition.y;
+
+    if (x + menuWidth > Dimensions.get('window').width - padding) {
+      x = Dimensions.get('window').width - menuWidth - padding;
+    }
+    if (x < padding) {
+      x = padding;
+    }
+
+    if (y + menuHeight > Dimensions.get('window').height - padding) {
+      y = y - menuHeight - 20;
+    }
+
+    return {x, y};
+  };
+  const ActionMenu = () => {
+    if (!menuVisible) return null;
+
+    const position = getMenuPosition();
+
+    return (
+      <>
+        <Animated.View
+          style={[styles.overlay, {opacity: overlayOpacity}]}
+          onTouchEnd={hideActionMenu}
+        />
+
+        <Animated.View
+          style={[
+            styles.actionMenu,
+            {
+              left: position.x,
+              top: position.y,
+              opacity: fadeAnim,
+              transform: [{scale: scaleAnim}],
+            },
+          ]}>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleCopyMessage}
+            activeOpacity={0.7}>
+            <Icon name="copy" size={16} color="#8A0032" />
+            <Text style={styles.actionText}>Copy</Text>
+          </TouchableOpacity>
+
+          <View style={styles.actionSeparator} />
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={handleDeleteMessage}
+            activeOpacity={0.7}>
+            <Icon name="trash-2" size={16} color="#FF3B30" />
+            <Text style={[styles.actionText, {color: '#FF3B30'}]}>Unsend</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </>
+    );
+  };
   return (
     <View style={styles.fullContainer}>
       <StatusBar backgroundColor="#8A0032" barStyle="light-content" />
@@ -483,6 +672,7 @@ const Messages = ({route}) => {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+        <ActionMenu />
         {/* Group Chat Details Modal */}
         {chatInfo?.isGroupChat && (
           <GroupChatDetailsModal
@@ -508,6 +698,55 @@ const Messages = ({route}) => {
 };
 
 const styles = StyleSheet.create({
+  selectedMessage: {
+    borderRadius: 8,
+    marginHorizontal: -4,
+    paddingHorizontal: 4,
+    right: 35,
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 1000,
+  },
+  actionMenu: {
+    position: 'absolute',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    minWidth: 140,
+    zIndex: 1001,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  actionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#8A0032',
+    marginLeft: 12,
+  },
+  actionSeparator: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginHorizontal: 12,
+  },
   fullContainer: {
     flex: 1,
     backgroundColor: '#8A0032',
