@@ -17,7 +17,9 @@ import {
   Animated,
   ToastAndroid,
 } from 'react-native';
-import { useClipboard } from '@react-native-clipboard/clipboard';
+// import { useClipboard } from '@react-native-clipboard/clipboard';
+import Clipboard from '@react-native-clipboard/clipboard';
+
 import { ChatState } from '../../Context/ChatProvider';
 import Icon from 'react-native-vector-icons/Feather';
 import { useNavigation } from '@react-navigation/native';
@@ -399,10 +401,8 @@ const Messages = ({ route }) => {
   const handleCopyMessage = async () => {
     if (selectedMessage) {
       try {
-        await useClipboard.setString(selectedMessage.content);
-        if (Platform.OS === 'android') {
-          ToastAndroid.show('Message copied', ToastAndroid.SHORT);
-        }
+        console.log("selected", selectedMessage.content)
+        await Clipboard.setString(selectedMessage?.content);
       } catch (error) {
         console.error('Failed to copy message:', error);
       }
