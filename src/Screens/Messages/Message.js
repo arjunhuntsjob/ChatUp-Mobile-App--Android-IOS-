@@ -17,7 +17,9 @@ import {
   Animated,
   ToastAndroid,
 } from 'react-native';
-import { useClipboard } from '@react-native-clipboard/clipboard';
+// import { useClipboard } from '@react-native-clipboard/clipboard';
+import Clipboard from '@react-native-clipboard/clipboard';
+
 import { ChatState } from '../../Context/ChatProvider';
 import Icon from 'react-native-vector-icons/Feather';
 import { useNavigation } from '@react-navigation/native';
@@ -143,7 +145,6 @@ const Messages = ({ route }) => {
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !chatInfo) return;
-
     try {
       const messageData = {
         content: newMessage.trim(),
@@ -169,7 +170,6 @@ const Messages = ({ route }) => {
       const data = await response.json();
       setMessages(prevMessages => [...prevMessages, data]);
       setNewMessage('');
-      setShowEmojiPicker(false); // Hide emoji picker after sending
 
       if (socket) {
         socket.emit('new message', data);
@@ -264,15 +264,25 @@ const Messages = ({ route }) => {
           <Image source={{ uri: item.sender.pic }} style={styles.messageAvatar} />
         )}
         {!isMyMessage && !showAvatar && <View style={styles.avatarSpacer} />}
-
-        <TouchableOpacity
+        {/* <TouchableOpacity
           style={[
             styles.messageBubble,
             isMyMessage ? styles.myMessageBubble : styles.theirMessageBubble,
           ]}
           activeOpacity={0.9}
           onLongPress={event => showActionMenu(item, event)}
-          delayLongPress={500}>
+          delayLongPress={500}> */}
+        <TouchableOpacity
+          style={[
+            styles.messageBubble,
+            isMyMessage ? styles.myMessageBubble : styles.theirMessageBubble,
+          ]}
+          activeOpacity={0.9}
+          {...(isMyMessage && {
+            onLongPress: event => showActionMenu(item, event),
+            delayLongPress: 500,
+          })}
+        >
           {!isMyMessage && chatInfo.isGroupChat && (
             <Text style={styles.senderName}>{item.sender.name}</Text>
           )}
@@ -399,10 +409,8 @@ const Messages = ({ route }) => {
   const handleCopyMessage = async () => {
     if (selectedMessage) {
       try {
-        await useClipboard.setString(selectedMessage.content);
-        if (Platform.OS === 'android') {
-          ToastAndroid.show('Message copied', ToastAndroid.SHORT);
-        }
+        console.log("selected", selectedMessage.content)
+        await Clipboard.setString(selectedMessage?.content);
       } catch (error) {
         console.error('Failed to copy message:', error);
       }
@@ -662,7 +670,7 @@ const Messages = ({ route }) => {
             />
 
             <TouchableOpacity
-              onPress={sendMessage}
+              onPress={() => { sendMessage(), setNewMessage('') }}
               style={[
                 styles.sendButton,
                 !newMessage.trim() && styles.sendButtonDisabled,
