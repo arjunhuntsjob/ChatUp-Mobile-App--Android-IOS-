@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,20 +7,23 @@ import {
   FlatList,
   StyleSheet,
 } from 'react-native';
-import {ChatState} from '../../Context/ChatProvider';
+import { ChatState } from '../../Context/ChatProvider';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {useNavigation} from '@react-navigation/native';
-import {Modal} from 'react-native';
-import {Searchbar} from 'react-native-paper';
+import { useNavigation } from '@react-navigation/native';
+import { Modal } from 'react-native';
+import { Searchbar } from 'react-native-paper';
 import AnimatedSearchOverlay from './AnimatedSearchOverlay';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import GroupChatModal from './GroupChatModal';
 import NotificationDropdown from './NotificationDropdown';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
+
 const HomeScreen = () => {
   // const {selectedChat, setSelectedChat, user, chats, setChats} = ChatState();
   // In your HomeScreen component, make sure this line includes notification:
-  const {selectedChat, setSelectedChat, user, chats, setChats, notification} =
+  const { selectedChat, setSelectedChat, user, chats, setChats, notification } =
     ChatState();
 
   const [isGroupChatModalOpen, setIsGroupChatModalOpen] = useState(false);
@@ -29,7 +32,12 @@ const HomeScreen = () => {
   const [isSearchOverlayVisible, setIsSearchOverlayVisible] = useState(false);
   const [isNotificationDropdownVisible, setIsNotificationDropdownVisible] =
     useState(false);
-
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchChats();
+    setRefreshing(false);
+  };
   const fetchChats = async () => {
     try {
       const response = await fetch(
@@ -51,6 +59,13 @@ const HomeScreen = () => {
     }
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchChats(); // refresh on screen focus
+    }, [])
+  );
+
+
   useEffect(() => {
     fetchChats();
   }, []);
@@ -62,7 +77,7 @@ const HomeScreen = () => {
     }
 
     setSelectedChat(notificationItem.chat);
-    navigation.navigate('Messages', {chat: notificationItem.chat});
+    navigation.navigate('Messages', { chat: notificationItem.chat });
   };
 
   const getSenderName = (loggedUser, users) => {
@@ -73,11 +88,11 @@ const HomeScreen = () => {
     return users[0]._id === loggedUser._id ? users[1].pic : users[0].pic;
   };
 
-  const renderChatItem = ({item}) => (
+  const renderChatItem = ({ item }) => (
     <TouchableOpacity
       onPress={() => {
         setSelectedChat(item);
-        navigation.navigate('Messages', {chat: item});
+        navigation.navigate('Messages', { chat: item });
       }}
       style={[
         styles.chatItem,
@@ -85,7 +100,7 @@ const HomeScreen = () => {
       ]}>
       {!item.isGroupChat ? (
         <Image
-          source={{uri: getSenderPic(user, item.users)}}
+          source={{ uri: getSenderPic(user, item.users) }}
           style={[
             styles.avatar,
             selectedChat?._id === item._id
@@ -215,7 +230,7 @@ const HomeScreen = () => {
           <TouchableOpacity
             onPress={() => setShowDropdown(!showDropdown)}
             style={styles.profileImageWrapper}>
-            <Image source={{uri: user?.pic}} style={styles.profileImage} />
+            <Image source={{ uri: user?.pic }} style={styles.profileImage} />
           </TouchableOpacity>
 
           {/* Dropdown Menu */}
@@ -260,6 +275,8 @@ const HomeScreen = () => {
         keyExtractor={item => item._id}
         contentContainerStyle={styles.chatList}
         ListEmptyComponent={renderEmptyComponent}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       />
 
       {/* Group Chat Modal */}
@@ -342,7 +359,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,
