@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -13,20 +13,20 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
-import {ChatState} from '../../Context/ChatProvider';
+import { ChatState } from '../../Context/ChatProvider';
 
-const {width} = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-const GroupChatModal = ({visible, onClose, fetchChats}) => {
+const GroupChatModal = ({ visible, onClose, fetchChats }) => {
   const [groupChatName, setGroupChatName] = useState('');
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const {user, chats, setChats, setSelectedChat} = ChatState();
+  const { user, chats, setChats, setSelectedChat } = ChatState();
 
   const handleSearch = async query => {
     setSearch(query);
@@ -130,9 +130,9 @@ const GroupChatModal = ({visible, onClose, fetchChats}) => {
     onClose();
   };
 
-  const renderSelectedUser = ({item}) => (
+  const renderSelectedUser = ({ item }) => (
     <View style={styles.selectedUserChip}>
-      <Image source={{uri: item.pic}} style={styles.selectedUserAvatar} />
+      <Image source={{ uri: item.pic }} style={styles.selectedUserAvatar} />
       <Text style={styles.selectedUserName} numberOfLines={1}>
         {item.name}
       </Text>
@@ -144,11 +144,11 @@ const GroupChatModal = ({visible, onClose, fetchChats}) => {
     </View>
   );
 
-  const renderSearchResult = ({item}) => (
+  const renderSearchResult = ({ item }) => (
     <TouchableOpacity
       style={styles.searchResultItem}
       onPress={() => handleAddUser(item)}>
-      <Image source={{uri: item.pic}} style={styles.searchResultAvatar} />
+      <Image source={{ uri: item.pic }} style={styles.searchResultAvatar} />
       <View style={styles.searchResultInfo}>
         <Text style={styles.searchResultName}>{item.name}</Text>
         <Text style={styles.searchResultEmail}>{item.email}</Text>
@@ -251,7 +251,7 @@ const GroupChatModal = ({visible, onClose, fetchChats}) => {
             style={[
               styles.createButton,
               (!groupChatName.trim() || selectedUsers.length === 0) &&
-                styles.createButtonDisabled,
+              styles.createButtonDisabled,
             ]}
             onPress={handleSubmit}
             disabled={!groupChatName.trim() || selectedUsers.length === 0}>
