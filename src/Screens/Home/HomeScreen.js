@@ -19,10 +19,10 @@ import GroupChatModal from './GroupChatModal';
 import NotificationDropdown from './NotificationDropdown';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
+import { SwipeListView } from 'react-native-swipe-list-view';
+import { Alert } from 'react-native';
 
 const HomeScreen = () => {
-  // const {selectedChat, setSelectedChat, user, chats, setChats} = ChatState();
-  // In your HomeScreen component, make sure this line includes notification:
   const { selectedChat, setSelectedChat, user, chats, setChats, notification } =
     ChatState();
 
@@ -33,11 +33,13 @@ const HomeScreen = () => {
   const [isNotificationDropdownVisible, setIsNotificationDropdownVisible] =
     useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchChats();
     setRefreshing(false);
   };
+
   const fetchChats = async () => {
     try {
       const response = await fetch(
@@ -65,7 +67,6 @@ const HomeScreen = () => {
     }, [])
   );
 
-
   useEffect(() => {
     fetchChats();
   }, []);
@@ -88,72 +89,169 @@ const HomeScreen = () => {
     return users[0]._id === loggedUser._id ? users[1].pic : users[0].pic;
   };
 
-  const renderChatItem = ({ item }) => (
-    <TouchableOpacity
-      onPress={() => {
-        setSelectedChat(item);
-        navigation.navigate('Messages', { chat: item });
-      }}
-      style={[
-        styles.chatItem,
-        selectedChat?._id === item._id ? styles.selectedChatItem : null,
-      ]}>
-      {!item.isGroupChat ? (
-        <Image
-          source={{ uri: getSenderPic(user, item.users) }}
-          style={[
-            styles.avatar,
-            selectedChat?._id === item._id
-              ? styles.selectedAvatar
-              : styles.normalAvatar,
-          ]}
-        />
-      ) : (
-        <View
-          style={[
-            styles.groupAvatar,
-            selectedChat?._id === item._id
-              ? styles.selectedGroupAvatar
-              : styles.normalGroupAvatar,
-          ]}>
-          <Text
-            style={[
-              styles.groupInitial,
-              selectedChat?._id === item._id
-                ? styles.selectedGroupInitial
-                : styles.normalGroupInitial,
-            ]}>
-            {item.chatName[0].toUpperCase()}
-          </Text>
-        </View>
-      )}
+  const handleClearChat = (chatId) => {
+    Alert.alert(
+      'Confirm Clear',
+      'Are you sure you want to clear this chat?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await fetch(`https://chat-application-1795.onrender.com/api/chat/clear`, {
+                method: "DELETE",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${user.token}`,
+                },
+                body: JSON.stringify({ chatId }),
+              });
 
-      <View style={styles.chatInfo}>
-        <Text
-          style={[
-            styles.chatName,
-            selectedChat?._id === item._id
-              ? styles.selectedText
-              : styles.normalText,
-          ]}
-          numberOfLines={1}>
-          {!item.isGroupChat ? getSenderName(user, item.users) : item.chatName}
-        </Text>
-        {item.latestMessage && (
+              if (!response.ok) throw new Error("Failed to clear chat");
+
+              if (selectedChat?._id === chatId) setSelectedChat(null);
+            } catch (error) {
+              console.error("Error clearing chat:", error);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+  const handleDeleteChat = (chatId) => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this chat?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await fetch(`https://chat-application-1795.onrender.com/api/chat/delete`, {
+                method: "DELETE",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${user.token}`,
+                },
+                body: JSON.stringify({ chatId }),
+              });
+
+              if (!response.ok) throw new Error("Failed to delete chat");
+
+              const updatedChats = chats.filter((chat) => chat._id !== chatId);
+              setChats(updatedChats);
+              if (selectedChat?._id === chatId) setSelectedChat(null);
+            } catch (error) {
+              console.error("Error deleting chat:", error);
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+
+  const renderChatItem = ({ item }) => (
+    <View style={styles.chatItemWrapper}>
+      <TouchableOpacity
+        onPress={() => {
+          setSelectedChat(item);
+          navigation.navigate('Messages', { chat: item });
+        }}
+        style={[
+          styles.chatItem,
+          selectedChat?._id === item._id ? styles.selectedChatItem : null,
+        ]}>
+        {!item.isGroupChat ? (
+          <Image
+            source={{ uri: getSenderPic(user, item.users) }}
+            style={[
+              styles.avatar,
+              selectedChat?._id === item._id
+                ? styles.selectedAvatar
+                : styles.normalAvatar,
+            ]}
+          />
+        ) : (
+          <View
+            style={[
+              styles.groupAvatar,
+              selectedChat?._id === item._id
+                ? styles.selectedGroupAvatar
+                : styles.normalGroupAvatar,
+            ]}>
+            <Text
+              style={[
+                styles.groupInitial,
+                selectedChat?._id === item._id
+                  ? styles.selectedGroupInitial
+                  : styles.normalGroupInitial,
+              ]}>
+              {item.chatName[0].toUpperCase()}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.chatInfo}>
           <Text
             style={[
-              styles.latestMessage,
+              styles.chatName,
               selectedChat?._id === item._id
-                ? styles.selectedLatestMessage
-                : styles.normalLatestMessage,
+                ? styles.selectedText
+                : styles.normalText,
             ]}
             numberOfLines={1}>
-            {item.latestMessage.content}
+            {!item.isGroupChat ? getSenderName(user, item.users) : item.chatName}
           </Text>
-        )}
-      </View>
-    </TouchableOpacity>
+          {item.latestMessage && (
+            <Text
+              style={[
+                styles.latestMessage,
+                selectedChat?._id === item._id
+                  ? styles.selectedLatestMessage
+                  : styles.normalLatestMessage,
+              ]}
+              numberOfLines={1}>
+              {item.latestMessage.content}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    </View>
   );
+
+  const renderHiddenItem = (data, rowMap) => {
+    const item = data.item;
+
+    return (
+      <View style={styles.rowBack}>
+        <TouchableOpacity
+          style={[styles.backRightBtn, styles.backRightBtnLeft]}
+          onPress={() => handleClearChat(item)}
+        >
+          <Text style={styles.backTextWhite}>Clear</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.backRightBtn, styles.backRightBtnRight]}
+          onPress={() => handleDeleteChat(item)}
+        >
+          <Text style={styles.backTextWhite}>Delete</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const renderEmptyComponent = () => (
     <View style={styles.emptyContainer}>
@@ -169,6 +267,7 @@ const HomeScreen = () => {
       </TouchableOpacity>
     </View>
   );
+
   const navigation = useNavigation();
 
   const HandleLogout = () => {
@@ -269,14 +368,22 @@ const HomeScreen = () => {
 
       {renderSearchBar()}
 
-      <FlatList
+      <SwipeListView
         data={chats}
+        keyExtractor={(item) => item._id}
         renderItem={renderChatItem}
-        keyExtractor={item => item._id}
+        renderHiddenItem={renderHiddenItem}
+        rightOpenValue={-160}
+        disableRightSwipe={true}
+        disableLeftSwipe={false}
         contentContainerStyle={styles.chatList}
-        ListEmptyComponent={renderEmptyComponent}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        ListEmptyComponent={renderEmptyComponent}
+        closeOnRowBeginSwipe={true}
+        closeOnRowOpen={true}
+        closeOnRowPress={true}
+        recalculateHiddenLayout={true}
       />
 
       {/* Group Chat Modal */}
@@ -302,6 +409,52 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  // New wrapper style to fix the background issue
+  chatItemWrapper: {
+    backgroundColor: '#FFFFFF', // Match container background
+    marginBottom: 10,
+    borderRadius: 10,
+  },
+
+  rowBack: {
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF', // Match container background
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingRight: 0, // Remove padding
+    borderRadius: 10,
+    marginBottom: 10,
+    height: '100%', // Ensure full height coverage
+  },
+  backRightBtn: {
+    alignItems: 'center',
+    bottom: 0,
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    width: 80,
+    height: '98%',
+
+  },
+  backRightBtnLeft: {
+    backgroundColor: '#8A0032',
+    right: 80,
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
+  },
+  backRightBtnRight: {
+    backgroundColor: '#ff0000',
+    right: 0,
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
+  },
+  backTextWhite: {
+    color: '#FFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
@@ -392,7 +545,6 @@ const styles = StyleSheet.create({
   searchIcon: {
     marginRight: 8,
   },
-
   searchBar: {
     flex: 1,
     backgroundColor: '#F2F2F2',
@@ -421,7 +573,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 10,
-    marginBottom: 10,
     backgroundColor: '#F8F8F8',
     borderWidth: 1,
     borderColor: '#EAEAEA',
@@ -536,7 +687,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
     zIndex: 1,
   },
-
   badgeText: {
     color: 'white',
     fontSize: 10,
