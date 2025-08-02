@@ -663,8 +663,8 @@ const Messages = ({ route }) => {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}> */}
         <KeyboardAvoidingView
           style={styles.keyboardContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : -15}>
           {/* Chat Header */}
           <View style={styles.header}>
             <TouchableOpacity
