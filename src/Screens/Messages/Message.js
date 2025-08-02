@@ -50,7 +50,7 @@ const Messages = ({ route }) => {
   const navigation = useNavigation();
   const flatListRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-
+  const typingIndicatorTimeoutRef = useRef(null);
   // Get chat info from route params or ChatState
   const chatInfo = route?.params?.chat || selectedChat;
 
@@ -61,6 +61,15 @@ const Messages = ({ route }) => {
       setupSocket();
     }
 
+    // return () => {
+    //   if (socket) {
+    //     socket.disconnect();
+    //   }
+    //   if (typingTimeoutRef.current) {
+    //     clearTimeout(typingTimeoutRef.current);
+    //   }
+    // };
+
     return () => {
       if (socket) {
         socket.disconnect();
@@ -68,8 +77,49 @@ const Messages = ({ route }) => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
+      if (typingIndicatorTimeoutRef.current) {
+        clearTimeout(typingIndicatorTimeoutRef.current);
+      }
     };
   }, [chatInfo]);
+
+  // const setupSocket = () => {
+  //   const newSocket = io(ENDPOINT);
+  //   setSocket(newSocket);
+
+  //   newSocket.emit('setup', user);
+  //   newSocket.on('connected', () => {
+  //     console.log('Connected to socket');
+  //   });
+
+  //   newSocket.on('typing', typingInfo => {
+  //     if (chatInfo && typingInfo.chatId === chatInfo._id) {
+  //       setIsTyping(true);
+  //       setTypingUser(typingInfo.user);
+  //     }
+  //   });
+
+  //   newSocket.on('stop typing', typingInfo => {
+  //     if (chatInfo && typingInfo.chatId === chatInfo._id) {
+  //       setIsTyping(false);
+  //       setTypingUser(null);
+  //     }
+  //   });
+
+  //   newSocket.on('message received', newMessage => {
+  //     if (chatInfo && newMessage.chat._id === chatInfo._id) {
+  //       setMessages(prevMessages => [...prevMessages, newMessage]);
+  //       // Auto scroll to bottom when new message received
+  //       setTimeout(() => {
+  //         flatListRef.current?.scrollToEnd({ animated: true });
+  //       }, 100);
+  //     }
+  //   });
+
+  //   if (chatInfo) {
+  //     newSocket.emit('join chat', chatInfo._id);
+  //   }
+  // };
 
   const setupSocket = () => {
     const newSocket = io(ENDPOINT);
@@ -81,16 +131,32 @@ const Messages = ({ route }) => {
     });
 
     newSocket.on('typing', typingInfo => {
-      if (chatInfo && typingInfo.chatId === chatInfo._id) {
+      if (chatInfo && typingInfo.chatId === chatInfo._id && typingInfo.user._id !== user._id) {
         setIsTyping(true);
         setTypingUser(typingInfo.user);
+
+        // Clear any existing timeout
+        if (typingIndicatorTimeoutRef.current) {
+          clearTimeout(typingIndicatorTimeoutRef.current);
+        }
+
+        // Set a fallback timeout to hide typing indicator after 5 seconds
+        typingIndicatorTimeoutRef.current = setTimeout(() => {
+          setIsTyping(false);
+          setTypingUser(null);
+        }, 5000);
       }
     });
 
     newSocket.on('stop typing', typingInfo => {
-      if (chatInfo && typingInfo.chatId === chatInfo._id) {
+      if (chatInfo && typingInfo.chatId === chatInfo._id && typingInfo.user._id !== user._id) {
         setIsTyping(false);
         setTypingUser(null);
+
+        // Clear the fallback timeout
+        if (typingIndicatorTimeoutRef.current) {
+          clearTimeout(typingIndicatorTimeoutRef.current);
+        }
       }
     });
 
@@ -108,7 +174,6 @@ const Messages = ({ route }) => {
       newSocket.emit('join chat', chatInfo._id);
     }
   };
-
   const fetchMessages = async () => {
     if (!chatInfo) return;
 
@@ -143,8 +208,62 @@ const Messages = ({ route }) => {
     }
   };
 
+  // const sendMessage = async () => {
+  //   if (!newMessage.trim() || !chatInfo) return;
+  //   try {
+  //     const messageData = {
+  //       content: newMessage.trim(),
+  //       chatId: chatInfo._id,
+  //     };
+
+  //     const response = await fetch(
+  //       'https://chat-application-1795.onrender.com/api/message',
+  //       {
+  //         method: 'POST',
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //           Authorization: `Bearer ${user.token}`,
+  //         },
+  //         body: JSON.stringify(messageData),
+  //       },
+  //     );
+
+  //     if (!response.ok) {
+  //       throw new Error('Failed to send message');
+  //     }
+
+  //     const data = await response.json();
+  //     setMessages(prevMessages => [...prevMessages, data]);
+  //     setNewMessage('');
+
+  //     if (socket) {
+  //       socket.emit('new message', data);
+  //       socket.emit('stop typing', {
+  //         chatId: chatInfo._id,
+  //         user: user,
+  //       });
+  //     }
+
+  //     // Auto scroll to bottom after sending message
+  //     setTimeout(() => {
+  //       flatListRef.current?.scrollToEnd({ animated: true });
+  //     }, 100);
+  //   } catch (error) {
+  //     console.error('Error sending message:', error);
+  //     Alert.alert('Error', 'Failed to send message');
+  //   }
+  // };
   const sendMessage = async () => {
     if (!newMessage.trim() || !chatInfo) return;
+
+    // Stop typing indicator immediately when sending
+    if (socket) {
+      socket.emit('stop typing', {
+        chatId: chatInfo._id,
+        user: user,
+      });
+    }
+
     try {
       const messageData = {
         content: newMessage.trim(),
@@ -173,10 +292,6 @@ const Messages = ({ route }) => {
 
       if (socket) {
         socket.emit('new message', data);
-        socket.emit('stop typing', {
-          chatId: chatInfo._id,
-          user: user,
-        });
       }
 
       // Auto scroll to bottom after sending message
@@ -188,28 +303,37 @@ const Messages = ({ route }) => {
       Alert.alert('Error', 'Failed to send message');
     }
   };
-
   const handleTyping = text => {
     setNewMessage(text);
 
     if (socket && chatInfo) {
-      socket.emit('typing', {
-        chatId: chatInfo._id,
-        user: user,
-      });
+      if (text.trim()) {
+        socket.emit('typing', {
+          chatId: chatInfo._id,
+          user: user,
+        });
+      } else {
+        // Stop typing when input is empty
+        socket.emit('stop typing', {
+          chatId: chatInfo._id,
+          user: user,
+        });
+      }
 
       // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
 
-      // Set new timeout to stop typing
-      typingTimeoutRef.current = setTimeout(() => {
-        socket.emit('stop typing', {
-          chatId: chatInfo._id,
-          user: user,
-        });
-      }, 3000);
+      // Only set timeout if there's text
+      if (text.trim()) {
+        typingTimeoutRef.current = setTimeout(() => {
+          socket.emit('stop typing', {
+            chatId: chatInfo._id,
+            user: user,
+          });
+        }, 3000);
+      }
     }
   };
 
@@ -533,9 +657,13 @@ const Messages = ({ route }) => {
       <StatusBar backgroundColor="#8A0032" barStyle="light-content" />
       <SafeAreaView style={styles.topSafeAreaOnly} />
       <SafeAreaView style={styles.mainContainer}>
-        <KeyboardAvoidingView
+        {/* <KeyboardAvoidingView
           style={styles.keyboardContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}> */}
+        <KeyboardAvoidingView
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
           {/* Chat Header */}
           <View style={styles.header}>
@@ -582,7 +710,7 @@ const Messages = ({ route }) => {
           </View>
 
           {/* Messages List */}
-          <FlatList
+          {/* <FlatList
             ref={flatListRef}
             data={messages}
             renderItem={renderMessage}
@@ -604,7 +732,33 @@ const Messages = ({ route }) => {
                 }, 1000);
               }
             }}
+          /> */}
+
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            renderItem={renderMessage}
+            style={{ flex: 1 }}
+            keyExtractor={(item, index) => item._id || index.toString()}
+            contentContainerStyle={styles.messagesList}
+            ListEmptyComponent={loading ? null : renderEmptyMessages}
+            onContentSizeChange={() => {
+              if (messages.length > 0) {
+                flatListRef.current?.scrollToEnd({ animated: true });
+              }
+            }}
+            showsVerticalScrollIndicator={false}
+            // Remove this line: ListFooterComponent={renderTypingIndicator}
+            onLayout={() => {
+              if (messages.length > 0) {
+                setTimeout(() => {
+                  flatListRef.current?.scrollToEnd({ animated: false });
+                }, 1000);
+              }
+            }}
           />
+
+          {renderTypingIndicator()}
 
           {loading && (
             <ActivityIndicator
@@ -618,6 +772,19 @@ const Messages = ({ route }) => {
               }}
             />
           )}
+
+          {/* {loading && (
+            <ActivityIndicator
+              style={{
+                color: '#8A0032',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
+            />
+          )} */}
 
           {/* Emoji Picker */}
           {showEmojiPicker && (
@@ -658,7 +825,7 @@ const Messages = ({ route }) => {
               />
             </TouchableOpacity> */}
 
-            <TextInput
+            {/* <TextInput
               style={styles.textInput}
               placeholder="Type a message..."
               placeholderTextColor="#999999"
@@ -667,8 +834,27 @@ const Messages = ({ route }) => {
               multiline
               maxLength={1000}
               onFocus={() => setShowEmojiPicker(false)}
+            /> */}
+            <TextInput
+              style={styles.textInput}
+              placeholder="Type a message..."
+              placeholderTextColor="#999999"
+              value={newMessage}
+              onChangeText={handleTyping}
+              multiline
+              maxLength={1000}
+              onFocus={() => {
+                setShowEmojiPicker(false);
+                // Small delay to ensure proper keyboard handling on Android
+                if (Platform.OS === 'android') {
+                  setTimeout(() => {
+                    flatListRef.current?.scrollToEnd({ animated: true });
+                  }, 300);
+                }
+              }}
+              blurOnSubmit={false}
+              textAlignVertical="top"
             />
-
             <TouchableOpacity
               onPress={() => { sendMessage(), setNewMessage('') }}
               style={[
@@ -913,11 +1099,19 @@ const styles = StyleSheet.create({
   theirMessageTime: {
     color: '#8A0032',
   },
+  // typingContainer: {
+  //   flexDirection: 'row',
+  //   alignItems: 'center',
+  //   marginBottom: 12,
+  //   marginTop: 8,
+  // },
   typingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 8,
+    marginBottom: 2, // Reduced from 12
+    marginTop: 0,
+    paddingHorizontal: 16, // Add horizontal padding to match messages
+    backgroundColor: '#EBE8DB', // Make sure it has the same background as messages
   },
   typingAvatar: {
     width: 32,
@@ -982,15 +1176,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  // inputContainer: {
+  //   flexDirection: 'row',
+  //   alignItems: 'flex-end',
+  //   padding: 16,
+  //   // paddingBottom: 0,
+  //   paddingBottom: Platform.OS === 'ios' ? 0 : 20,
+  //   backgroundColor: '#FFFFFF',
+  //   borderTopWidth: 1,
+  //   borderTopColor: '#D76C82',
+  // },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: 16,
-    // paddingBottom: 0,
-    paddingBottom: Platform.OS === 'ios' ? 0 : 20,
+    paddingBottom: Platform.OS === 'ios' ? 0 : 16, // Changed from 20 to 16
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#D76C82',
+    minHeight: Platform.OS === 'android' ? 60 : 'auto', // Add minimum height for Android
   },
   emojiButton: {
     width: 44,
