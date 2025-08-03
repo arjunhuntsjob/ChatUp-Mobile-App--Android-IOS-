@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, {useState, useEffect} from 'react';
 import {
   View,
   Text,
@@ -7,24 +7,31 @@ import {
   FlatList,
   StyleSheet,
 } from 'react-native';
-import { ChatState } from '../../Context/ChatProvider';
+import {ChatState} from '../../Context/ChatProvider';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
-import { Modal } from 'react-native';
-import { Searchbar } from 'react-native-paper';
+import {useNavigation} from '@react-navigation/native';
+import {Modal} from 'react-native';
+import {Searchbar} from 'react-native-paper';
 import AnimatedSearchOverlay from './AnimatedSearchOverlay';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import GroupChatModal from './GroupChatModal';
 import NotificationDropdown from './NotificationDropdown';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
-import { SwipeListView } from 'react-native-swipe-list-view';
-import { Alert } from 'react-native';
+import {useFocusEffect} from '@react-navigation/native';
+import {useCallback} from 'react';
+import {SwipeListView} from 'react-native-swipe-list-view';
+import {Alert} from 'react-native';
 
 const HomeScreen = () => {
-  const { selectedChat, setSelectedChat, user, chats, setChats, notification } =
-    ChatState();
+  const {
+    selectedChat,
+    setSelectedChat,
+    user,
+    chats,
+    setChats,
+    notification,
+    isOnline,
+  } = ChatState();
 
   const [isGroupChatModalOpen, setIsGroupChatModalOpen] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -64,7 +71,7 @@ const HomeScreen = () => {
   useFocusEffect(
     useCallback(() => {
       fetchChats(); // refresh on screen focus
-    }, [])
+    }, []),
   );
 
   useEffect(() => {
@@ -78,7 +85,7 @@ const HomeScreen = () => {
     }
 
     setSelectedChat(notificationItem.chat);
-    navigation.navigate('Messages', { chat: notificationItem.chat });
+    navigation.navigate('Messages', {chat: notificationItem.chat});
   };
 
   const getSenderName = (loggedUser, users) => {
@@ -89,7 +96,7 @@ const HomeScreen = () => {
     return users[0]._id === loggedUser._id ? users[1].pic : users[0].pic;
   };
 
-  const handleClearChat = (chatId) => {
+  const handleClearChat = chatId => {
     Alert.alert(
       'Confirm Clear',
       'Are you sure you want to clear this chat?',
@@ -103,28 +110,32 @@ const HomeScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`https://chat-application-1795.onrender.com/api/chat/clear`, {
-                method: "DELETE",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${user.token}`,
+              const response = await fetch(
+                `https://chat-application-1795.onrender.com/api/chat/clear`,
+                {
+                  method: 'DELETE',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${user.token}`,
+                  },
+                  body: JSON.stringify({chatId}),
                 },
-                body: JSON.stringify({ chatId }),
-              });
+              );
 
-              if (!response.ok) throw new Error("Failed to clear chat");
+              if (!response.ok) throw new Error('Failed to clear chat');
 
               if (selectedChat?._id === chatId) setSelectedChat(null);
             } catch (error) {
-              console.error("Error clearing chat:", error);
+              console.error('Error clearing chat:', error);
             }
           },
         },
       ],
-      { cancelable: true }
+      {cancelable: true},
     );
   };
-  const handleDeleteChat = (chatId) => {
+
+  const handleDeleteChat = chatId => {
     Alert.alert(
       'Confirm Delete',
       'Are you sure you want to delete this chat?',
@@ -138,37 +149,44 @@ const HomeScreen = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`https://chat-application-1795.onrender.com/api/chat/delete`, {
-                method: "DELETE",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${user.token}`,
-                },
-                body: JSON.stringify({ chatId }),
-              });
+              if (isOnline) {
+                // Online: delete from server
+                const response = await fetch(
+                  `https://chat-application-1795.onrender.com/api/chat/delete`,
+                  {
+                    method: 'DELETE',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      Authorization: `Bearer ${user.token}`,
+                    },
+                    body: JSON.stringify({chatId}),
+                  },
+                );
 
-              if (!response.ok) throw new Error("Failed to delete chat");
+                if (!response.ok) throw new Error('Failed to delete chat');
+              }
 
-              const updatedChats = chats.filter((chat) => chat._id !== chatId);
+              // Always update local state and database
+              const updatedChats = chats.filter(chat => chat._id !== chatId);
               setChats(updatedChats);
+              await DatabaseHelper.deleteChat(chatId);
+
               if (selectedChat?._id === chatId) setSelectedChat(null);
             } catch (error) {
-              console.error("Error deleting chat:", error);
+              console.error('Error deleting chat:', error);
             }
           },
         },
       ],
-      { cancelable: true }
+      {cancelable: true},
     );
   };
-
-
-  const renderChatItem = ({ item }) => (
+  const renderChatItem = ({item}) => (
     <View style={styles.chatItemWrapper}>
       <TouchableOpacity
         onPress={() => {
           setSelectedChat(item);
-          navigation.navigate('Messages', { chat: item });
+          navigation.navigate('Messages', {chat: item});
         }}
         style={[
           styles.chatItem,
@@ -176,7 +194,7 @@ const HomeScreen = () => {
         ]}>
         {!item.isGroupChat ? (
           <Image
-            source={{ uri: getSenderPic(user, item.users) }}
+            source={{uri: getSenderPic(user, item.users)}}
             style={[
               styles.avatar,
               selectedChat?._id === item._id
@@ -213,7 +231,9 @@ const HomeScreen = () => {
                 : styles.normalText,
             ]}
             numberOfLines={1}>
-            {!item.isGroupChat ? getSenderName(user, item.users) : item.chatName}
+            {!item.isGroupChat
+              ? getSenderName(user, item.users)
+              : item.chatName}
           </Text>
           {item.latestMessage && (
             <Text
@@ -239,14 +259,12 @@ const HomeScreen = () => {
       <View style={styles.rowBack}>
         <TouchableOpacity
           style={[styles.backRightBtn, styles.backRightBtnLeft]}
-          onPress={() => handleClearChat(item)}
-        >
+          onPress={() => handleClearChat(item)}>
           <Text style={styles.backTextWhite}>Clear</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.backRightBtn, styles.backRightBtnRight]}
-          onPress={() => handleDeleteChat(item)}
-        >
+          onPress={() => handleDeleteChat(item)}>
           <Text style={styles.backTextWhite}>Delete</Text>
         </TouchableOpacity>
       </View>
@@ -302,7 +320,11 @@ const HomeScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Chats</Text>
+        <View>
+          <Text style={styles.headerTitle}>My Chats</Text>
+          {!isOnline && <Text style={styles.offlineIndicator}>● Offline</Text>}
+        </View>
+        {/* <Text style={styles.headerTitle}>My Chats</Text> */}
         <View style={styles.headerRight}>
           {/* Notification Button */}
           <TouchableOpacity
@@ -329,7 +351,7 @@ const HomeScreen = () => {
           <TouchableOpacity
             onPress={() => setShowDropdown(!showDropdown)}
             style={styles.profileImageWrapper}>
-            <Image source={{ uri: user?.pic }} style={styles.profileImage} />
+            <Image source={{uri: user?.pic}} style={styles.profileImage} />
           </TouchableOpacity>
 
           {/* Dropdown Menu */}
@@ -370,7 +392,7 @@ const HomeScreen = () => {
 
       <SwipeListView
         data={chats}
-        keyExtractor={(item) => item._id}
+        keyExtractor={item => item._id}
         renderItem={renderChatItem}
         renderHiddenItem={renderHiddenItem}
         rightOpenValue={-160}
@@ -410,6 +432,11 @@ const HomeScreen = () => {
 
 const styles = StyleSheet.create({
   // New wrapper style to fix the background issue
+  offlineIndicator: {
+    color: '#ff6b6b',
+    fontSize: 12,
+    fontWeight: '500',
+  },
   chatItemWrapper: {
     backgroundColor: '#FFFFFF', // Match container background
     marginBottom: 10,
@@ -435,7 +462,6 @@ const styles = StyleSheet.create({
     top: 0,
     width: 80,
     height: '98%',
-
   },
   backRightBtnLeft: {
     backgroundColor: '#8A0032',
@@ -512,7 +538,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 4,

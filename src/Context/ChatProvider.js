@@ -7,7 +7,8 @@ import React, {
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import io from 'socket.io-client';
-
+import DatabaseHelper from '../OfflineHelper/DatabaseHelper';
+import NetworkHelper from '../OfflineHelper/NetworkHelper';
 const ChatContext = createContext();
 const ENDPOINT = 'https://chat-application-1795.onrender.com';
 
@@ -18,8 +19,26 @@ const ChatProvider = ({children}) => {
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState([]);
   const [socket, setSocket] = useState(null);
+  const [isOnline, setIsOnline] = useState(true);
 
-  // Fetch Chats Method
+  useEffect(() => {
+    const initializeApp = async () => {
+      await DatabaseHelper.initDB();
+      NetworkHelper.init();
+
+      // Add network listener
+      NetworkHelper.addListener(isConnected => {
+        setIsOnline(isConnected);
+        if (isConnected) {
+          // When back online, sync chats
+          fetchChats();
+        }
+      });
+    };
+
+    initializeApp();
+  }, []);
+
   const fetchChats = useCallback(async () => {
     try {
       const userInfoString = await AsyncStorage.getItem('userInfo');
@@ -31,26 +50,51 @@ const ChatProvider = ({children}) => {
 
       const userInfo = JSON.parse(userInfoString);
 
-      const response = await fetch(
-        'https://chat-application-1795.onrender.com/api/chat',
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${userInfo.token}`,
-            'Content-Type': 'application/json',
+      // Check network status
+      const isConnected = await NetworkHelper.checkConnection();
+
+      if (isConnected) {
+        // Online: fetch from server
+        const response = await fetch(
+          'https://chat-application-1795.onrender.com/api/chat',
+          {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${userInfo.token}`,
+              'Content-Type': 'application/json',
+            },
           },
-        },
-      );
+        );
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch chats');
+        if (!response.ok) {
+          throw new Error('Failed to fetch chats');
+        }
+
+        const data = await response.json();
+        setChats(data);
+
+        // Save to local database
+        await DatabaseHelper.saveChats(data);
+
+        setLoading(false);
+      } else {
+        // Offline: load from local database
+        console.log('Loading chats from local database (offline mode)');
+        const localChats = await DatabaseHelper.getChats();
+        setChats(localChats);
+        setLoading(false);
       }
-
-      const data = await response.json();
-      setChats(data);
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching chats:', error);
+
+      // If network request fails, try loading from local database
+      try {
+        const localChats = await DatabaseHelper.getChats();
+        setChats(localChats);
+      } catch (localError) {
+        console.error('Error loading local chats:', localError);
+      }
+
       setLoading(false);
     }
   }, []);
@@ -165,7 +209,8 @@ const ChatProvider = ({children}) => {
         setNotification,
         addNotification,
         removeNotification,
-        socket, // Provide socket for chat-specific operations
+        socket,
+        isOnline,
       }}>
       {children}
     </ChatContext.Provider>
