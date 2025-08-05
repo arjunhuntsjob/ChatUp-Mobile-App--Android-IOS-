@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -17,22 +17,23 @@ import {
   Animated,
   ToastAndroid,
 } from 'react-native';
-// import { useClipboard } from '@react-native-clipboard/clipboard';
 import Clipboard from '@react-native-clipboard/clipboard';
 
-import {ChatState} from '../../Context/ChatProvider';
+import { ChatState } from '../../Context/ChatProvider';
 import Icon from 'react-native-vector-icons/Feather';
-import {useNavigation} from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import io from 'socket.io-client';
-import EmojiSelector, {Categories} from 'react-native-emoji-selector';
+import EmojiSelector, { Categories } from 'react-native-emoji-selector';
 import GroupChatDetailsModal from './GroupChatsDetailsModal';
 import DatabaseHelper from '../../OfflineHelper/DatabaseHelper';
 import NetworkHelper from '../../OfflineHelper/NetworkHelper';
-const ENDPOINT = 'https://chat-application-1795.onrender.com';
-const {height: screenHeight} = Dimensions.get('window');
+import notificationManager from '../../Notifications/NotificationManager';
 
-const Messages = ({route}) => {
-  const {selectedChat, user, setSelectedChat} = ChatState();
+const ENDPOINT = 'https://chat-application-1795.onrender.com';
+const { height: screenHeight } = Dimensions.get('window');
+
+const Messages = ({ route }) => {
+  const { selectedChat, user, setSelectedChat } = ChatState();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [newMessage, setNewMessage] = useState('');
@@ -43,7 +44,7 @@ const Messages = ({route}) => {
   const [showGroupDetails, setShowGroupDetails] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({x: 0, y: 0});
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -56,6 +57,17 @@ const Messages = ({route}) => {
   const chatInfo = route?.params?.chat || selectedChat;
   const [isOnline, setIsOnline] = useState(true); // Add this line
   const [pendingMessages, setPendingMessages] = useState([]); // Add this line
+
+  // Notifications setup 
+  useEffect(() => {
+    if (chatInfo) {
+      setSelectedChat(chatInfo);
+      notificationManager.setCurrentChat(chatInfo._id);
+      return () => {
+        notificationManager.clearCurrentChat();
+      };
+    }
+  }, [chatInfo]);
 
   useEffect(() => {
     if (chatInfo) {
@@ -98,6 +110,7 @@ const Messages = ({route}) => {
       };
     }
   }, [chatInfo]);
+
   const setupSocket = () => {
     const newSocket = io(ENDPOINT);
     setSocket(newSocket);
@@ -144,19 +157,41 @@ const Messages = ({route}) => {
         }
       }
     });
+    // newSocket.on('message received', async newMessage => {
+    //   if (chatInfo && newMessage.chat._id === chatInfo._id) {
+    //     setMessages(prevMessages => [...prevMessages, newMessage]);
+
+    //     // Save the received message to local database
+    //     await DatabaseHelper.saveMessage(newMessage);
+
+    //     // Auto scroll to bottom when new message received
+    //     setTimeout(() => {
+    //       flatListRef.current?.scrollToEnd({ animated: true });
+    //     }, 100);
+    //   }
+    // });
+
+
+    // Notification setup
     newSocket.on('message received', async newMessage => {
       if (chatInfo && newMessage.chat._id === chatInfo._id) {
         setMessages(prevMessages => [...prevMessages, newMessage]);
-
-        // Save the received message to local database
         await DatabaseHelper.saveMessage(newMessage);
 
-        // Auto scroll to bottom when new message received
+        // Show notification
+        await notificationManager.showMessageNotification(
+          newMessage,
+          newMessage.chat,
+          user
+        );
+
         setTimeout(() => {
-          flatListRef.current?.scrollToEnd({animated: true});
+          flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
       }
     });
+
+
     if (chatInfo) {
       newSocket.emit('join chat', chatInfo._id);
     }
@@ -247,7 +282,7 @@ const Messages = ({route}) => {
 
         // Auto scroll to bottom after loading messages
         setTimeout(() => {
-          flatListRef.current?.scrollToEnd({animated: false});
+          flatListRef.current?.scrollToEnd({ animated: false });
         }, 100);
       } else {
         // Offline: load from local database
@@ -261,7 +296,7 @@ const Messages = ({route}) => {
 
         // Auto scroll to bottom after loading messages
         setTimeout(() => {
-          flatListRef.current?.scrollToEnd({animated: false});
+          flatListRef.current?.scrollToEnd({ animated: false });
         }, 100);
       }
     } catch (error) {
@@ -355,7 +390,7 @@ const Messages = ({route}) => {
 
         // Auto scroll to bottom after sending message
         setTimeout(() => {
-          flatListRef.current?.scrollToEnd({animated: true});
+          flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
       } catch (error) {
         console.error('Error sending message:', error);
@@ -380,7 +415,7 @@ const Messages = ({route}) => {
 
       // Auto scroll to bottom
       setTimeout(() => {
-        flatListRef.current?.scrollToEnd({animated: true});
+        flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
   };
@@ -450,7 +485,7 @@ const Messages = ({route}) => {
     }
   };
 
-  const renderMessage = ({item, index}) => {
+  const renderMessage = ({ item, index }) => {
     const isMyMessage = item.sender._id === user._id;
     const allMessages = [...messages, ...pendingMessages];
     const showAvatar =
@@ -471,7 +506,7 @@ const Messages = ({route}) => {
           isSelected && styles.selectedMessage,
         ]}>
         {!isMyMessage && showAvatar && (
-          <Image source={{uri: item.sender.pic}} style={styles.messageAvatar} />
+          <Image source={{ uri: item.sender.pic }} style={styles.messageAvatar} />
         )}
         {!isMyMessage && !showAvatar && <View style={styles.avatarSpacer} />}
 
@@ -484,9 +519,9 @@ const Messages = ({route}) => {
           activeOpacity={0.9}
           {...(isMyMessage &&
             !isPending && {
-              onLongPress: event => showActionMenu(item, event),
-              delayLongPress: 500,
-            })}>
+            onLongPress: event => showActionMenu(item, event),
+            delayLongPress: 500,
+          })}>
           {!isMyMessage && chatInfo.isGroupChat && (
             <Text style={styles.senderName}>{item.sender.name}</Text>
           )}
@@ -517,7 +552,7 @@ const Messages = ({route}) => {
 
     return (
       <View style={styles.typingContainer}>
-        <Image source={{uri: typingUser.pic}} style={styles.typingAvatar} />
+        <Image source={{ uri: typingUser.pic }} style={styles.typingAvatar} />
         <View style={styles.typingBubble}>
           <Text style={styles.typingText}>{typingUser.name} is typing</Text>
           <View style={styles.typingDots}>
@@ -564,10 +599,10 @@ const Messages = ({route}) => {
   }
 
   const showActionMenu = (item, event) => {
-    const {pageX, pageY} = event.nativeEvent;
+    const { pageX, pageY } = event.nativeEvent;
 
     setSelectedMessage(item);
-    setMenuPosition({x: pageX, y: pageY});
+    setMenuPosition({ x: pageX, y: pageY });
     setMenuVisible(true);
 
     Animated.parallel([
@@ -632,7 +667,7 @@ const Messages = ({route}) => {
         'Delete Message',
         'Are you sure you want to delete this message?',
         [
-          {text: 'Cancel', style: 'cancel'},
+          { text: 'Cancel', style: 'cancel' },
           {
             text: 'Delete',
             style: 'destructive',
@@ -697,7 +732,7 @@ const Messages = ({route}) => {
       y = y - menuHeight - 20;
     }
 
-    return {x, y};
+    return { x, y };
   };
   const ActionMenu = () => {
     if (!menuVisible) return null;
@@ -707,7 +742,7 @@ const Messages = ({route}) => {
     return (
       <>
         <Animated.View
-          style={[styles.overlay, {opacity: overlayOpacity}]}
+          style={[styles.overlay, { opacity: overlayOpacity }]}
           onTouchEnd={hideActionMenu}
         />
 
@@ -718,7 +753,7 @@ const Messages = ({route}) => {
               left: position.x,
               top: position.y,
               opacity: fadeAnim,
-              transform: [{scale: scaleAnim}],
+              transform: [{ scale: scaleAnim }],
             },
           ]}>
           <TouchableOpacity
@@ -736,7 +771,7 @@ const Messages = ({route}) => {
             onPress={handleDeleteMessage}
             activeOpacity={0.7}>
             <Icon name="trash-2" size={16} color="#FF3B30" />
-            <Text style={[styles.actionText, {color: '#FF3B30'}]}>Unsend</Text>
+            <Text style={[styles.actionText, { color: '#FF3B30' }]}>Unsend</Text>
           </TouchableOpacity>
         </Animated.View>
       </>
@@ -760,7 +795,7 @@ const Messages = ({route}) => {
             </TouchableOpacity>
             {!chatInfo.isGroupChat ? (
               <Image
-                source={{uri: getSenderPic(user, chatInfo.users)}}
+                source={{ uri: getSenderPic(user, chatInfo.users) }}
                 style={styles.headerAvatar}
               />
             ) : (
@@ -801,20 +836,20 @@ const Messages = ({route}) => {
             ref={flatListRef}
             data={[...messages, ...pendingMessages]}
             renderItem={renderMessage}
-            style={{flex: 1}}
+            style={{ flex: 1 }}
             keyExtractor={(item, index) => item._id || index.toString()}
             contentContainerStyle={styles.messagesList}
             ListEmptyComponent={loading ? null : renderEmptyMessages}
             onContentSizeChange={() => {
               if (messages.length > 0 || pendingMessages.length > 0) {
-                flatListRef.current?.scrollToEnd({animated: true});
+                flatListRef.current?.scrollToEnd({ animated: true });
               }
             }}
             showsVerticalScrollIndicator={false}
             onLayout={() => {
               if (messages.length > 0 || pendingMessages.length > 0) {
                 setTimeout(() => {
-                  flatListRef.current?.scrollToEnd({animated: false});
+                  flatListRef.current?.scrollToEnd({ animated: false });
                 }, 1000);
               }
             }}
@@ -874,7 +909,7 @@ const Messages = ({route}) => {
                 // Small delay to ensure proper keyboard handling on Android
                 if (Platform.OS === 'android') {
                   setTimeout(() => {
-                    flatListRef.current?.scrollToEnd({animated: true});
+                    flatListRef.current?.scrollToEnd({ animated: true });
                   }, 300);
                 }
               }}
@@ -969,7 +1004,7 @@ const styles = StyleSheet.create({
     zIndex: 1001,
     elevation: 8,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 4},
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     borderWidth: 1,
@@ -1018,7 +1053,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#D76C82',
     elevation: 4,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     paddingTop: Platform.OS === 'ios' ? 0 : 60,
@@ -1109,7 +1144,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     elevation: 2,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
@@ -1282,7 +1317,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     elevation: 2,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
   },
