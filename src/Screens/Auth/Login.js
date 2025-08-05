@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,13 +13,13 @@ import {
   SafeAreaView,
   Linking,
 } from 'react-native';
-import {useNavigation} from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {Svg, Path, Circle} from 'react-native-svg';
-import {ChatState} from '../../Context/ChatProvider';
+import { Svg, Path, Circle } from 'react-native-svg';
+import { ChatState } from '../../Context/ChatProvider';
 const Login = () => {
   const navigation = useNavigation();
-  const {setUser} = ChatState();
+  const { setUser } = ChatState();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -45,8 +45,8 @@ const Login = () => {
         'https://chat-application-1795.onrender.com/api/user/login',
         {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({email, password}),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
         },
       );
 
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     padding: 6,
     marginBottom: 8,
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,

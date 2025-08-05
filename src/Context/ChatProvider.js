@@ -9,10 +9,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import io from 'socket.io-client';
 import DatabaseHelper from '../OfflineHelper/DatabaseHelper';
 import NetworkHelper from '../OfflineHelper/NetworkHelper';
+import notificationManager from '../Notifications/NotificationManager';
 const ChatContext = createContext();
 const ENDPOINT = 'https://chat-application-1795.onrender.com';
 
-const ChatProvider = ({children}) => {
+const ChatProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [selectedChat, setSelectedChat] = useState(null);
   const [chats, setChats] = useState([]);
@@ -20,6 +21,18 @@ const ChatProvider = ({children}) => {
   const [notification, setNotification] = useState([]);
   const [socket, setSocket] = useState(null);
   const [isOnline, setIsOnline] = useState(true);
+
+  //Notification setup
+
+  const updateNotificationBadge = async () => {
+    const badgeCount = notification.length;
+    await notificationManager.setBadgeCount(badgeCount);
+  };
+
+  // Call this whenever notification array changes
+  useEffect(() => {
+    updateNotificationBadge();
+  }, [notification]);
 
   useEffect(() => {
     const initializeApp = async () => {
